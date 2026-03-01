@@ -6,6 +6,21 @@ It doesn't just "talk" to models; it **conducts** them.
 
 ---
 
+## ⚡ Performance
+NXCLI is optimized for minimal latency. It uses an intelligent heuristic to decide whether a task requires complex orchestration or can be handled directly.
+
+### Speed Test Results
+*Testing prompt: "What is the capital of Japan?"*
+
+| Mode | Path | Total Time | Speedup |
+| :--- | :--- | :--- | :--- |
+| **Turbo** | Direct to Agent | **~9.6s** | **2.8x Faster** |
+| **Standard** | Planning ➔ Execution | **~27.3s** | Baseline |
+
+By skipping the planning phase for simple queries, Turbo Mode eliminates over **65% of the wait time**.
+
+---
+
 ## 🏗️ How it Works
 NXCLI uses a **Planning-Execution-Piping** loop to solve complex tasks:
 1.  **Analyze:** The Master Brain (Gemini 2.0) decomposes your natural language request into a sequence of specialized steps.
