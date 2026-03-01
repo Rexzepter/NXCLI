@@ -159,8 +159,10 @@ def orchestrate(task, dry_run=False, verbose=False):
 
     context = ""
     last_output = ""
+    agents_used = []
     for i, step in enumerate(plan):
         agent_name = step['agent']
+        agents_used.append(agent_name.upper())
         should_be_silent = not verbose
         full_prompt = f"{step['task']}\n\nContext:\n{context}" if context else step['task']
         
@@ -172,10 +174,15 @@ def orchestrate(task, dry_run=False, verbose=False):
             break
     
     if not verbose and last_output:
+        # NXCLI v2.8 - Brand-Consistent Output & Summary
         print("\n" + "\033[1;36m" + "─" * 60 + "\033[0m")
+        # Display the Chain of Command
+        summary = " ➔ ".join(agents_used)
+        print(f"\033[1;35m[NXCLI]\033[0m \033[1;36mChain of Command:\033[0m {summary}\n")
+        
         clean_lines = [l for l in last_output.splitlines() if not is_noise(l)]
         console.print(Markdown("\n".join(clean_lines)))
-        print("\033[1;36m" + "─" * 60 + "\033[0m")
+        print("\033[1;35m" + "─" * 60 + "\033[0m")
 
 def start_interactive_shell(verbose=False):
     print_logo()
