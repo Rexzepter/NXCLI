@@ -51,36 +51,19 @@ def print_logo():
             colored_line += f"\033[38;2;{r};{g};{b}m{char}"
         print(colored_line + "\033[0m")
     tagline = "The Multimodal Agent Orchestrator"
-    version = "v2.6 Turbo"
+    version = "v2.9 Deep Silence"
     print(f"\n\033[1;37m{tagline}\033[0m \033[1;34m{version}\033[0m\n")
 
 def ensure_config():
-    """Ensure the config directory and default config file exist."""
     config_dir = os.path.dirname(CONFIG_PATH)
     if not os.path.exists(config_dir):
         os.makedirs(config_dir)
-    
     if not os.path.exists(CONFIG_PATH):
         default_config = {
             "agents": {
-                "gemini": {
-                    "cmd": "gemini -y -p",
-                    "strength": "Planning, search, architecture, orchestration.",
-                    "capabilities": ["text", "vision", "search"],
-                    "enabled": True
-                },
-                "qwen": {
-                    "cmd": "qwen -y -p",
-                    "strength": "Fast code generation, refactoring, algorithms.",
-                    "capabilities": ["text", "code"],
-                    "enabled": True
-                },
-                "opencode": {
-                    "cmd": "opencode run",
-                    "strength": "Security, privacy, and local audits.",
-                    "capabilities": ["text", "audit"],
-                    "enabled": True
-                }
+                "gemini": {"cmd": "gemini -y -p", "strength": "Planning, search, orchestration.", "capabilities": ["text", "vision", "search"], "enabled": True},
+                "qwen": {"cmd": "qwen -y -p", "strength": "Fast code, refactoring.", "capabilities": ["text", "code"], "enabled": True},
+                "opencode": {"cmd": "opencode run", "strength": "Security, privacy audits.", "capabilities": ["text", "audit"], "enabled": True}
             },
             "master": "gemini",
             "fast_mode_threshold": 50
@@ -100,31 +83,31 @@ def is_noise(line):
     return False
 
 def run_agent(agent_name, prompt, agent_info, silent=False):
-    # Performance Optimization: Prevent wandering outside current folder
     cmd = f"{agent_info['cmd']} \"{prompt.replace('\"', '\\\"')}\""
     
-    if silent:
-        # Run silently in background without any UI
-        try:
-            result = subprocess.check_output(cmd, shell=True, text=True)
-            return result.strip()
-        except:
-            return None
-
-    # NXCLI v2.7 - Animated Progress Spinner
-    with console.status(f"[bold cyan]NXCLI[/bold cyan] > [bold white]{agent_name.upper()} is thinking...[/bold white]", spinner="dots"):
-        try:
-            process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    # Use a spinner for all visible agent tasks
+    status_msg = f"[bold cyan]NXCLI[/bold cyan] > [bold white]{agent_name.upper()} is working...[/bold white]"
+    
+    try:
+        if silent:
+            # Capture both stdout and stderr to prevent noise leak
+            process = subprocess.run(cmd, shell=True, capture_output=True, text=True)
             output = []
-            for line in process.stdout:
+            for line in process.stdout.splitlines():
                 if not is_noise(line):
-                    # We don't print lines during the spinner to keep it clean
-                    # If we need live streaming, we would remove the status wrapper
                     output.append(line)
-            process.wait()
-            return "".join(output).strip() if process.returncode == 0 else None
-        except:
-            return None
+            return "\n".join(output).strip()
+        else:
+            with console.status(status_msg, spinner="dots"):
+                process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                output = []
+                for line in process.stdout:
+                    if not is_noise(line):
+                        output.append(line)
+                process.wait()
+                return "".join(output).strip() if process.returncode == 0 else None
+    except:
+        return None
 
 def orchestrate(task, dry_run=False, verbose=False):
     if not task.strip(): return
@@ -132,16 +115,14 @@ def orchestrate(task, dry_run=False, verbose=False):
     agents = config['agents']
     master_agent = config['master']
 
-    # TURBO OPTIMIZATION: Bypassing planning for simple queries
     multi_step_words = ['then', 'and', 'after', 'next', 'then ask', 'follow up']
     is_simple = len(task.split()) < config.get('fast_mode_threshold', 50) and not any(w in task.lower() for w in multi_step_words)
 
     if is_simple and not verbose:
         plan = [{"agent": master_agent, "task": task}]
     else:
-        # Optimized Planning Prompt (Shorter instructions)
         agent_desc = "\n".join([f"- {name}: {info['strength']}" for name, info in agents.items() if info['enabled']])
-        orchestration_prompt = f"Plan this task: {task}\nAgents:\n{agent_desc}\nResponse: JSON list only."
+        orchestration_prompt = f"Plan this task as JSON list: {task}\nAgents:\n{agent_desc}"
         
         if verbose: print(f"[NXCLI] 🧠 Planning...")
         plan_raw = run_agent(master_agent, orchestration_prompt, agents[master_agent], silent=True)
@@ -152,6 +133,9 @@ def orchestrate(task, dry_run=False, verbose=False):
             elif "```" in plan_raw:
                 plan_raw = plan_raw.split("```")[1].split("```")[0].strip()
             plan = json.loads(plan_raw)
+            # Ensure plan is a list of dicts
+            if not isinstance(plan, list) or (len(plan) > 0 and not isinstance(plan[0], dict)):
+                raise ValueError("Invalid JSON format")
         except:
             plan = [{"agent": master_agent, "task": task}]
 
@@ -160,23 +144,22 @@ def orchestrate(task, dry_run=False, verbose=False):
     context = ""
     last_output = ""
     agents_used = []
-    for i, step in enumerate(plan):
+    for step in plan:
+        if not isinstance(step, dict) or 'agent' not in step: continue
+        
         agent_name = step['agent']
         agents_used.append(agent_name.upper())
-        should_be_silent = not verbose
         full_prompt = f"{step['task']}\n\nContext:\n{context}" if context else step['task']
         
-        output = run_agent(agent_name, full_prompt, agents[agent_name], silent=should_be_silent)
+        output = run_agent(agent_name, full_prompt, agents[agent_name], silent=not verbose)
         if output:
             context = output
             last_output = output
         else:
             break
     
-    if not verbose and last_output:
-        # NXCLI v2.8 - Brand-Consistent Output & Summary
+    if last_output:
         print("\n" + "\033[1;36m" + "─" * 60 + "\033[0m")
-        # Display the Chain of Command
         summary = " ➔ ".join(agents_used)
         print(f"\033[1;35m[NXCLI]\033[0m \033[1;36mChain of Command:\033[0m {summary}\n")
         
@@ -200,7 +183,7 @@ def start_interactive_shell(verbose=False):
             break
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="NXCLI v2.6 Turbo")
+    parser = argparse.ArgumentParser(description="NXCLI v2.9 Deep Silence")
     parser.add_argument("task", type=str, nargs='?', default=None)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("-v", "--verbose", action="store_true")
