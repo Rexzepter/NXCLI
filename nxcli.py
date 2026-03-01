@@ -86,7 +86,7 @@ def run_agent(agent_name, prompt, agent_info, silent=False):
     cmd = f"{agent_info['cmd']} \"{prompt.replace('\"', '\\\"')}\""
     
     # Use a spinner for all visible agent tasks
-    status_msg = f"[bold cyan]NXCLI[/bold cyan] > [bold white]{agent_name.upper()} is working...[/bold white]"
+    status_msg = f"[bold red]NXCLI[/bold red] > [bold white]{agent_name.upper()} is working...[/bold white]"
     
     try:
         if silent:
@@ -168,20 +168,20 @@ def orchestrate(task, dry_run=False, verbose=False):
             break
     
     if last_output:
-        print("\n" + "\033[1;36m" + "─" * 60 + "\033[0m")
+        print("\n" + "\033[1;31m" + "─" * 60 + "\033[0m")
         summary = " ➔ ".join(agents_used)
-        print(f"\033[1;35m[NXCLI]\033[0m \033[1;36mChain of Command:\033[0m {summary}\n")
+        print(f"\033[1;31m[NXCLI]\033[0m \033[1;33mChain of Command:\033[0m {summary}\n")
         
         clean_lines = [l for l in last_output.splitlines() if not is_noise(l)]
         console.print(Markdown("\n".join(clean_lines)))
-        print("\033[1;35m" + "─" * 60 + "\033[0m")
+        print("\033[1;33m" + "─" * 60 + "\033[0m")
 
 def start_interactive_shell(verbose=False):
     print_logo()
     print("Type your task and press Enter. (Exit with 'exit')\n")
     while True:
         try:
-            task = input("\033[1;36mNXCLI\033[0m > ").strip()
+            task = input("\033[1;31mNXCLI\033[0m > ").strip()
             if task.lower() in ['exit', 'quit']:
                 print("\n[NXCLI] Come back soon 👋")
                 break
