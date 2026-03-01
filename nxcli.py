@@ -101,24 +101,30 @@ def is_noise(line):
 
 def run_agent(agent_name, prompt, agent_info, silent=False):
     # Performance Optimization: Prevent wandering outside current folder
-    # We add a comma-separated include to tell the agent to stay here
     cmd = f"{agent_info['cmd']} \"{prompt.replace('\"', '\\\"')}\""
     
-    if not silent:
-        print(f"\n[NXCLI] 🚀 {agent_name.upper()} is working...")
-    
-    try:
-        process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        output = []
-        for line in process.stdout:
-            if not is_noise(line):
-                if not silent and line.strip():
-                    print(line, end="")
-                output.append(line)
-        process.wait()
-        return "".join(output).strip() if process.returncode == 0 else None
-    except:
-        return None
+    if silent:
+        # Run silently in background without any UI
+        try:
+            result = subprocess.check_output(cmd, shell=True, text=True)
+            return result.strip()
+        except:
+            return None
+
+    # NXCLI v2.7 - Animated Progress Spinner
+    with console.status(f"[bold cyan]NXCLI[/bold cyan] > [bold white]{agent_name.upper()} is thinking...[/bold white]", spinner="dots"):
+        try:
+            process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            output = []
+            for line in process.stdout:
+                if not is_noise(line):
+                    # We don't print lines during the spinner to keep it clean
+                    # If we need live streaming, we would remove the status wrapper
+                    output.append(line)
+            process.wait()
+            return "".join(output).strip() if process.returncode == 0 else None
+        except:
+            return None
 
 def orchestrate(task, dry_run=False, verbose=False):
     if not task.strip(): return
