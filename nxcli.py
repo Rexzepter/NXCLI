@@ -119,10 +119,19 @@ def orchestrate(task, dry_run=False, verbose=False):
     is_simple = len(task.split()) < config.get('fast_mode_threshold', 50) and not any(w in task.lower() for w in multi_step_words)
 
     if is_simple and not verbose:
-        plan = [{"agent": master_agent, "task": task}]
+        direct_task = f"{task}\n\nSTRICT: No introductory preambles. Start the answer immediately."
+        plan = [{"agent": master_agent, "task": direct_task}]
     else:
         agent_desc = "\n".join([f"- {name}: {info['strength']}" for name, info in agents.items() if info['enabled']])
-        orchestration_prompt = f"Plan this task as JSON list: {task}\nAgents:\n{agent_desc}"
+        orchestration_prompt = f"""
+        Plan this task as a JSON list: {task}
+        Agents:
+        {agent_desc}
+        
+        STRICT DIRECTIVE: For the final step, the agent MUST NOT use any introductory preambles like "I will search for...", "I will begin by...", or "Here is the result...". 
+        Jump directly into the answer or code. 
+        Response format: JSON list only.
+        """
         
         if verbose: print(f"[NXCLI] 🧠 Planning...")
         plan_raw = run_agent(master_agent, orchestration_prompt, agents[master_agent], silent=True)
