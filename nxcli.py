@@ -229,7 +229,7 @@ def orchestrate(task, dry_run=False, verbose=False, initial_context=""):
 
     context = initial_context
     last_output = ""
-    chain_display = []
+    breadcrumb = []
     total_start = time.time()
     for i, step in enumerate(plan):
         if not isinstance(step, dict) or 'agent' not in step: continue
@@ -240,10 +240,11 @@ def orchestrate(task, dry_run=False, verbose=False, initial_context=""):
         
         agent_info = config['agents'].get(agent_name, {"cmd": "sh -c", "strength": "Local Shell"})
         specialty = agent_info.get('strength', '').split(',')[0].split('.')[0].strip()
-        chain_display.append(f"{agent_name.upper()} ({specialty})")
-
+        
+        # v5.1 - Detailed Glass Box HUD
         mode_label = "[bold yellow]TURBO[/bold yellow]" if len(plan) == 1 else f"[bold cyan]STEP {i+1}/{len(plan)}[/bold cyan]"
-        step_prefix = f"[bold red]NXCLI[/bold red] > {mode_label} [bold white]{agent_name.upper()}"
+        task_preview = step['task'][:50] + "..." if len(step['task']) > 50 else step['task']
+        step_prefix = f"[bold red]NXCLI[/bold red] > {mode_label} [bold white]{agent_name.upper()} ({specialty})[/bold white]\n      [dim]Task: {task_preview}[/dim]"
         
         output = run_agent(agent_name, f"{step['task']}\n\nContext:\n{context}", agent_info, status_prefix=step_prefix, silent=False)
         if output == "CANCELLED": break
@@ -256,13 +257,14 @@ def orchestrate(task, dry_run=False, verbose=False, initial_context=""):
             
             context = output
             last_output = output
-            save_session(context, chain_display)
+            breadcrumb.append(f"{agent_name.upper()} ({specialty})")
+            save_session(context, breadcrumb)
         else: break
     
     if last_output and last_output != "CANCELLED":
         total_time = time.time() - total_start
         console.print("\n" + "\033[1;31m" + "─" * 60 + "\033[0m")
-        console.print(f"\033[1;31m[NXCLI]\033[0m \033[1;33mChain:\033[0m {" ➔ ".join(chain_display)} \033[1;34m({total_time:.1f}s total)\033[0m\n")
+        console.print(f"\033[1;31m[NXCLI]\033[0m \033[1;33mChain:\033[0m {" ➔ ".join(breadcrumb)} \033[1;34m({total_time:.1f}s total)\033[0m\n")
         console.print(Markdown(clean_output_text(last_output)))
         console.print("\033[1;33m" + "─" * 60 + "\033[0m")
     return context
