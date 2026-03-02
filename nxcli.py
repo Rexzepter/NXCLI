@@ -5,6 +5,7 @@ import subprocess
 import argparse
 import re
 import mimetypes
+import readline
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -12,6 +13,7 @@ from rich.panel import Panel
 import time
 
 CONFIG_PATH = os.path.expanduser("~/.config/nxcli/nxcli_config.json")
+HISTORY_PATH = os.path.expanduser("~/.nxcli_history")
 console = Console()
 
 NOISE_PATTERNS = [
@@ -54,7 +56,7 @@ def print_logo():
             colored_line += f"\033[38;2;{r};{g};{b}m{char}"
         print(colored_line + "\033[0m")
     tagline = "The High-Performance Agent Orchestrator"
-    version = "v4.0 (Gemini 3.1 Pro)"
+    version = "v4.1 (Gemini 3.1 Pro)"
     print(f"\n\033[1;37m{tagline}\033[0m \033[1;31m{version}\033[0m\n")
 
 def ensure_config():
@@ -205,17 +207,43 @@ def orchestrate(task, dry_run=False, verbose=False):
 
 def start_interactive_shell(verbose=False):
     print_logo()
+    
+    # Load history
+    if os.path.exists(HISTORY_PATH):
+        try:
+            readline.read_history_file(HISTORY_PATH)
+        except:
+            pass
+    
     print("Type your task and press Enter. (Exit with 'exit')\n")
     while True:
         try:
             task = input("\033[1;31mNXCLI\033[0m > ").strip()
+            
             if task.lower() in ['exit', 'quit']:
                 print("\n[NXCLI] Come back soon 👋")
+                # Save history
+                try:
+                    readline.write_history_file(HISTORY_PATH)
+                except:
+                    pass
                 break
-            if task: orchestrate(task, verbose=verbose)
+            
+            if task: 
+                orchestrate(task, verbose=verbose)
+                # Auto-save history after each successful task
+                try:
+                    readline.write_history_file(HISTORY_PATH)
+                except:
+                    pass
+            
             # Removed redundant separator
         except (KeyboardInterrupt, EOFError):
             print("\n[NXCLI] Come back soon 👋")
+            try:
+                readline.write_history_file(HISTORY_PATH)
+            except:
+                pass
             break
 
 if __name__ == "__main__":
