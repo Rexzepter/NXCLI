@@ -1,80 +1,73 @@
-# NXCLI: The High-Performance Agent Orchestrator 🚀
+# NXCLI: High-Performance Agent Orchestrator
 
-**NXCLI** is a terminal-native orchestrator designed to unify your local AI agents (Gemini, Qwen, Claude, OpenCode) into a single, cohesive "Super-Agent." 
-
-It doesn't just "talk" to models; it **conducts** them.
+NXCLI is a terminal-native orchestration engine designed to synchronize and pipe context between distributed AI agent binaries (Gemini, Qwen, Claude, OpenCode). It implements a high-fidelity serial context-piping architecture to enable autonomous multi-agent workflows.
 
 ---
 
-## ⚡ Performance
-NXCLI is optimized for minimal latency. It uses an intelligent heuristic to decide whether a task requires complex orchestration or can be handled directly.
+## Performance Metrics
+NXCLI is optimized for minimal execution latency through a heuristic direct-path execution model.
 
-### Speed Test Results
-*Testing prompt: "What is the capital of Japan?"*
-
-| Mode | Path | Total Time | Speedup |
+| Mode | Execution Path | Mean Latency | Throughput Efficiency |
 | :--- | :--- | :--- | :--- |
-| **Turbo** | Direct to Agent | **~9.6s** | **2.8x Faster** |
-| **Standard** | Planning ➔ Execution | **~27.3s** | Baseline |
+| **Turbo** | Direct Agent Execution | **9.6s** | **2.8x Speedup** |
+| **Standard** | Heuristic Planning ➔ Serial Execution | **27.3s** | Baseline |
 
-By skipping the planning phase for simple queries, Turbo Mode eliminates over **65% of the wait time**.
+Heuristic optimization reduces wait time by approximately 65% for single-agent tasks.
 
 ---
 
-## 🏗️ How it Works
-NXCLI uses a **Planning-Execution-Piping** loop to solve complex tasks:
-1.  **Analyze:** The Master Brain (Gemini 3.1 Pro) decomposes your natural language request into a sequence of specialized steps.
-2.  **Assign:** Each step is assigned to the best agent for the job (e.g., Qwen for fast code, OpenCode for security, Gemini for research).
-3.  **Pipe:** Output from one agent is automatically fed as context to the next, creating a "mesh" of intelligence.
+## Technical Architecture
+NXCLI operates on a three-tier execution loop:
+1.  **Contextual Analysis:** The Master Brain (Gemini 3.1 Pro) performs zero-shot task decomposition into atomic sub-tasks.
+2.  **Resource Allocation:** Steps are routed to specialized agents based on capability mapping (e.g., Qwen for high-velocity code generation, OpenCode for security auditing).
+3.  **Serial Piping:** Output from Agent(n) is injected into the prompt context of Agent(n+1), maintaining state integrity across the orchestration chain.
 
-## ✨ Features
+---
 
-### 🧠 Core Intelligence
--   **v5.0 Intelligence:** Powered by Gemini 3.1 Pro with a **1-million-token** context window for massive multi-agent workflows.
--   **Workspace Pulse:** Automatically scans your project context (Git status, file structure, language detection) to provide agents with "eyes" on your workspace.
--   **Recursive Sub-Planning:** Fractally decompose complex engineering tasks into nested mini-orchestrations for higher reliability.
--   **Reflect & Repair:** Autonomous self-correction loops. If an agent fails or outputs an error, the Master Brain automatically generates a surgical fix.
--   **JIT Tool Synthesis:** Dynamically generates commands for local shell tools (like `docker`, `git`, or `ffmpeg`) even if they aren't pre-configured.
+## Functional Capabilities
 
-### 🛠️ Developer Productivity
--   **Turbo Mode:** Bypasses planning for simple queries to provide near-instant responses.
--   **Named Checkpoints:** Use `save <name>` and `load <name>` commands to version your agent sessions and branch off alternative approaches.
--   **Session Persistence:** Automatically saves and restores your last orchestration state across terminal restarts.
--   **Command History:** Persistent REPL history with full Up/Down arrow support.
--   **Direct-to-Result:** Strict directives ensure agents skip the "I will search for..." filler and jump straight to the answer.
+### Core Intelligence
+-   **v5.0 Engine:** Integrated Gemini 3.1 Pro logic with 1,000,000 token context window.
+-   **Workspace Pulse:** Non-blocking environment sensing (Git state, file structure, dependency mapping).
+-   **Recursive Decomposition:** Fractal sub-planning for complex engineering requirements.
+-   **Autonomous Error Recovery:** Reactive self-correction loops for handling agent failures and stderr exceptions.
+-   **JIT Tool Synthesis:** Dynamic generation of transient wrapper agents for local CLI binaries.
 
-### 🎨 Premium UI/UX
--   **Rich UI:** High-contrast TrueColor gradients (Crimson Blaze) and full Markdown rendering using the `rich` engine.
--   **Interactive Shell:** A persistent REPL mode that lets you build complex projects without re-typing `nxcli`.
--   **Live Step Timer:** Real-time counter for every execution step, giving you instant feedback on agent latency.
--   **Noise Suppression (Deep Silence):** Completely suppresses technical noise, EPERM errors, and YOLO mode warnings for a pure, branded output.
+### Developer Environment
+-   **State Persistence:** Automatic session serialization and restoration via standard config directory.
+-   **Context Checkpointing:** Manual and automatic state versioning (`save` and `load` primitives).
+-   **Interactive REPL:** Persistent shell with readline support and command history.
+-   **Filtered Output:** Surgical technical noise suppression and deep-clean post-processing.
 
-## 🚀 Getting Started
+### Visual Interface
+-   **TrueColor Rendering:** 24-bit color gradient engine.
+-   **Markdown Integration:** Native terminal Markdown rendering via the Rich library.
+-   **Live HUD:** Non-blocking execution timers and dynamic status indicators.
+
+---
+
+## Setup and Deployment
 
 ### 1. Prerequisites
-You must have the following AI agents installed and available in your `PATH`:
-- [Gemini CLI](https://geminicli.com)
-- [Qwen Code](https://github.com/QwenLM/Qwen-Agent)
-- [OpenCode](https://opencode.ai)
+The following binaries must be present in the system PATH:
+- Gemini CLI
+- Qwen Code
+- OpenCode
 
 ### 2. Installation
-Clone the repository and run the installation script:
 ```bash
 git clone https://github.com/Rexzepter/NXCLI.git
 cd nxcli
 ./install.sh
 ```
 
-### 3. Usage
-- **Direct Mode:** `nxcli "Write a secure Python scraper for example.com"`
-- **Interactive Mode:** Simply type `nxcli` to enter the persistent shell.
-- **Dry Run:** `nxcli "Your Task" --dry-run` to see the plan without executing agents.
+### 3. Execution
+- **Standard:** `nxcli "task string"`
+- **Interactive:** `nxcli`
+- **Simulation:** `nxcli "task string" --dry-run`
 
-## ⚙️ Configuration
-Customize your agents and their "Strengths" in `~/.config/nxcli/nxcli_config.json`. You can add any CLI-based agent by simply adding its command and capabilities to the registry.
+## Configuration
+Agent profiles and system parameters are managed in `~/.config/nxcli/nxcli_config.json`.
 
-## 🛡️ License
-Distributed under the MIT License. See `LICENSE` for more information.
-
----
-*Built for the next generation of Vibe Coders.*
+## License
+Distributed under the MIT License.
