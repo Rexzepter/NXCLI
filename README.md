@@ -28,12 +28,26 @@ NXCLI uses a **Planning-Execution-Piping** loop to solve complex tasks:
 3.  **Pipe:** Output from one agent is automatically fed as context to the next, creating a "mesh" of intelligence.
 
 ## ✨ Features
--   **v4.0 Intelligence:** Powered by Gemini 3.1 Pro with a **1-million-token** context window for massive multi-agent workflows.
+
+### 🧠 Core Intelligence
+-   **v4.4 Sentinel Intelligence:** Powered by Gemini 3.1 Pro with a **1-million-token** context window for massive multi-agent workflows.
+-   **Workspace Pulse:** Automatically scans your project context (Git status, file structure, language detection) to provide agents with "eyes" on your workspace.
+-   **Recursive Sub-Planning:** Fractally decompose complex engineering tasks into nested mini-orchestrations for higher reliability.
+-   **Reflect & Repair:** Autonomous self-correction loops. If an agent fails or outputs an error, the Master Brain automatically generates a surgical fix.
+-   **JIT Tool Synthesis:** Dynamically generates commands for local shell tools (like `docker`, `git`, or `ffmpeg`) even if they aren't pre-configured.
+
+### 🛠️ Developer Productivity
 -   **Turbo Mode:** Bypasses planning for simple queries to provide near-instant responses.
--   **Contextual Piping:** Automatically pipes output from one agent into the next, maintaining deep context across complex workflows.
--   **Rich UI:** High-contrast TrueColor gradients and full Markdown rendering using the `rich` engine.
+-   **Named Checkpoints:** Use `save <name>` and `load <name>` commands to version your agent sessions and branch off alternative approaches.
+-   **Session Persistence:** Automatically saves and restores your last orchestration state across terminal restarts.
+-   **Command History:** Persistent REPL history with full Up/Down arrow support.
+-   **Direct-to-Result:** Strict directives ensure agents skip the "I will search for..." filler and jump straight to the answer.
+
+### 🎨 Premium UI/UX
+-   **Rich UI:** High-contrast TrueColor gradients (Crimson Blaze) and full Markdown rendering using the `rich` engine.
 -   **Interactive Shell:** A persistent REPL mode that lets you build complex projects without re-typing `nxcli`.
--   **Noise Suppression:** Automatically filters technical system errors and YOLO mode warnings for a clean interface.
+-   **Live Step Timer:** Real-time counter for every execution step, giving you instant feedback on agent latency.
+-   **Noise Suppression (Deep Silence):** Completely suppresses technical noise, EPERM errors, and YOLO mode warnings for a pure, branded output.
 
 ## 🚀 Getting Started
 
@@ -46,7 +60,7 @@ You must have the following AI agents installed and available in your `PATH`:
 ### 2. Installation
 Clone the repository and run the installation script:
 ```bash
-git clone https://github.com/your-username/nxcli.git
+git clone https://github.com/Rexzepter/NXCLI.git
 cd nxcli
 ./install.sh
 ```
