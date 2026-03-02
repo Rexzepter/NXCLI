@@ -51,8 +51,8 @@ def print_logo():
             b = int(start_rgb[2] + (end_rgb[2] - start_rgb[2]) * ratio)
             colored_line += f"\033[38;2;{r};{g};{b}m{char}"
         print(colored_line + "\033[0m")
-    tagline = "The Multimodal Agent Orchestrator"
-    version = "v3.3 Mode Aware"
+    tagline = "The High-Performance Agent Orchestrator"
+    version = "v3.5 Turbo"
     print(f"\n\033[1;37m{tagline}\033[0m \033[1;31m{version}\033[0m\n")
 
 def ensure_config():
