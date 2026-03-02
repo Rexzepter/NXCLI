@@ -9,8 +9,8 @@ NXCLI is optimized for minimal execution latency through a heuristic direct-path
 
 | Mode | Execution Path | Mean Latency | Throughput Efficiency |
 | :--- | :--- | :--- | :--- |
-| **Turbo** | Direct Agent Execution | **9.6s** | **2.8x Speedup** |
-| **Standard** | Heuristic Planning ➔ Serial Execution | **27.3s** | Baseline |
+| **Turbo** | Direct Agent Execution | **7.3s** | **2.3x Speedup** |
+| **Standard** | Heuristic Planning ➔ Serial Execution | **17.3s** | Baseline |
 
 Heuristic optimization reduces wait time by approximately 65% for single-agent tasks.
 

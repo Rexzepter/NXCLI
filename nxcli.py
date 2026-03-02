@@ -97,12 +97,19 @@ def is_noise(line):
 
 def clean_output_text(text):
     if not text: return ""
-    preambles = [r"(?i)^i will (search|run|begin|start|provide|perform).*", r"(?i)^here is the.*", r"(?i)^based on the.*", r"(?i)^sure, i can.*"]
+    preambles = [
+        r"(?i)^i will (search|run|begin|start|provide|perform).*",
+        r"(?i)^here is the.*",
+        r"(?i)^based on the.*",
+        r"(?i)^sure, i can.*",
+        r"(?i)^the capital of.*"
+    ]
     lines = text.splitlines()
     cleaned = []
     for line in lines:
         if is_noise(line): continue
-        if any(re.match(p, line.strip()) for p in preambles): continue
+        is_preamble = any(re.match(p, line.strip()) for p in preambles)
+        if is_preamble: continue
         if ".Trash" in line and "path:" in line: continue
         cleaned.append(line)
     return "\n".join(cleaned).strip()
@@ -114,12 +121,32 @@ def get_workspace_pulse():
         if os.path.exists('.git'):
             res = subprocess.run("git rev-parse --abbrev-ref HEAD", shell=True, capture_output=True, text=True)
             pulse['git_branch'] = res.stdout.strip()
+        if os.path.exists('package.json'): pulse['type'] = 'Node.js'
+        elif os.path.exists('requirements.txt') or os.path.exists('pyproject.toml'): pulse['type'] = 'Python'
+        elif os.path.exists('Cargo.toml'): pulse['type'] = 'Rust'
     except: pass
     return json.dumps(pulse)
+
+def save_session(context, agents_used, name="default"):
+    try:
+        path = os.path.join(SESSION_DIR, f"{name}.json")
+        with open(path, 'w') as f:
+            json.dump({"context": context, "agents": agents_used, "timestamp": time.time()}, f)
+        return True
+    except: return False
+
+def load_session(name="default"):
+    path = os.path.join(SESSION_DIR, f"{name}.json")
+    if os.path.exists(path):
+        try:
+            with open(path, 'r') as f: return json.load(f)
+        except: return None
+    return None
 
 def run_agent(agent_name, prompt, agent_info, status_prefix=None, silent=False):
     base_cmd = agent_info.get('cmd', 'sh -c')
     cmd = f"{base_cmd} \"{prompt.replace('\"', '\\\"')}\""
+    
     if silent:
         try:
             process = subprocess.run(cmd, shell=True, capture_output=True, text=True)
@@ -129,6 +156,7 @@ def run_agent(agent_name, prompt, agent_info, status_prefix=None, silent=False):
     display_name = agent_name.upper()
     label = status_prefix or f"[bold red]NXCLI[/bold red] > [bold white]{display_name}"
     start_time = time.time()
+    
     with console.status(f"{label} [bold white]starting...[/bold white]", spinner="dots") as status:
         process = None
         try:
@@ -137,14 +165,17 @@ def run_agent(agent_name, prompt, agent_info, status_prefix=None, silent=False):
             while process.poll() is None:
                 elapsed = time.time() - start_time
                 status.update(f"{label} [bold white]is working... ({elapsed:.1f}s) [dim]Ctrl+C to Cancel[/dim][/bold white]")
-                import fcntl
-                fd = process.stdout.fileno()
-                fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-                fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
-                try:
-                    line = process.stdout.readline()
-                    if line and not is_noise(line): output.append(line)
-                except: pass
+                while True:
+                    try:
+                        import fcntl
+                        fd = process.stdout.fileno()
+                        fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+                        fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+                        line = process.stdout.readline()
+                        if line:
+                            if not is_noise(line): output.append(line)
+                        else: break
+                    except: break
                 time.sleep(0.1)
             final_stdout, _ = process.communicate()
             if final_stdout:
@@ -164,16 +195,35 @@ def orchestrate(task, dry_run=False, verbose=False, initial_context=""):
     master_agent = config['master']
     pulse = get_workspace_pulse()
 
-    with console.status("[bold red]NXCLI[/bold red] > [bold white]Identifying path...[/bold white]", spinner="dots") as status:
-        agent_desc = "\n".join([f"- {name}: {info['strength']}" for name, info in agents.items()])
-        orchestration_prompt = f"Workspace: {pulse}\nPlan task as JSON list: {task}\nAgents: {agent_desc}"
-        plan_raw = run_agent(master_agent, orchestration_prompt, config['agents'][master_agent], silent=True)
-        if plan_raw == "CANCELLED": return initial_context
-        try:
-            if "```json" in plan_raw: plan_raw = plan_raw.split("```json")[1].split("```")[0].strip()
-            res = json.loads(plan_raw)
-            plan = res if isinstance(res, list) else [{"agent": master_agent, "task": task}]
-        except: plan = [{"agent": master_agent, "task": task}]
+    multi_step_words = ['then', 'and', 'after', 'next', 'then ask', 'follow up']
+    is_simple = len(task.split()) < config.get('fast_mode_threshold', 50) and not any(w in task.lower() for w in multi_step_words)
+
+    if is_simple and not verbose and not initial_context:
+        plan = [{"agent": master_agent, "task": f"Context: {pulse}\n\nTask: {task}\n\nSTRICT: No intro."}]
+    else:
+        with console.status("[bold red]NXCLI[/bold red] > [bold white]Identifying path...[/bold white]", spinner="dots") as status:
+            status.update("[bold red]NXCLI[/bold red] > [bold cyan]ORCHESTRATION MODE[/bold cyan] [bold white]planning...[/bold white]")
+            agent_desc = "\n".join([f"- {name}: {info['strength']}" for name, info in agents.items()])
+            orchestration_prompt = f"""
+            Workspace: {pulse}
+            Plan task as JSON list: {task}
+            Available Agents: {agent_desc}
+            STRICT: If complex, use "orchestrator" agent. If local tool needed, use "local_shell".
+            Format: JSON list only.
+            """
+            plan_raw = run_agent(master_agent, orchestration_prompt, config['agents'][master_agent], silent=True)
+            if plan_raw == "CANCELLED": return initial_context
+            try:
+                if "```json" in plan_raw: plan_raw = plan_raw.split("```json")[1].split("```")[0].strip()
+                elif "```" in plan_raw: plan_raw = plan_raw.split("```")[1].split("```")[0].strip()
+                res = json.loads(plan_raw)
+                if isinstance(res, dict) and "clarify" in res:
+                    status.stop()
+                    console.print(Panel(res['clarify'], title="[bold red]Clarification Needed[/bold red]", border_style="red"))
+                    user_answer = input("\033[1;33mYour Answer\033[0m > ").strip()
+                    return orchestrate(f"{task}\n\nClarification: {user_answer}", dry_run, verbose, initial_context)
+                plan = res if isinstance(res, list) else [{"agent": master_agent, "task": task}]
+            except: plan = [{"agent": master_agent, "task": task}]
 
     if dry_run: return initial_context
 
@@ -182,15 +232,31 @@ def orchestrate(task, dry_run=False, verbose=False, initial_context=""):
     chain_display = []
     total_start = time.time()
     for i, step in enumerate(plan):
+        if not isinstance(step, dict) or 'agent' not in step: continue
         agent_name = step['agent']
+        if agent_name.lower() == "orchestrator":
+            context = orchestrate(step['task'], dry_run, verbose, initial_context=context)
+            continue
+        
         agent_info = config['agents'].get(agent_name, {"cmd": "sh -c", "strength": "Local Shell"})
-        chain_display.append(f"{agent_name.upper()}")
+        specialty = agent_info.get('strength', '').split(',')[0].split('.')[0].strip()
+        chain_display.append(f"{agent_name.upper()} ({specialty})")
+
         mode_label = "[bold yellow]TURBO[/bold yellow]" if len(plan) == 1 else f"[bold cyan]STEP {i+1}/{len(plan)}[/bold cyan]"
-        output = run_agent(agent_name, f"{step['task']}\n\nContext:\n{context}", agent_info, status_prefix=f"[bold red]NXCLI[/bold red] > {mode_label} [bold white]{agent_name.upper()}", silent=False)
+        step_prefix = f"[bold red]NXCLI[/bold red] > {mode_label} [bold white]{agent_name.upper()}"
+        
+        output = run_agent(agent_name, f"{step['task']}\n\nContext:\n{context}", agent_info, status_prefix=step_prefix, silent=False)
         if output == "CANCELLED": break
         if output:
+            # Sentinel Refinement: Deep Reflect & Repair
+            if any(k in output for k in ["Error:", "Traceback", "failed"]) and not verbose:
+                repair_prompt = f"The previous output failed with an error: {output}. Generate a fixed version."
+                repaired = run_agent(master_agent, repair_prompt, config['agents'][master_agent], silent=True)
+                if repaired: output = repaired
+            
             context = output
             last_output = output
+            save_session(context, chain_display)
         else: break
     
     if last_output and last_output != "CANCELLED":
@@ -202,10 +268,9 @@ def orchestrate(task, dry_run=False, verbose=False, initial_context=""):
     return context
 
 def start_interactive_shell(verbose=False):
-    # Live Animated Intro
     offset = 0
     with Live(get_animated_logo(offset), console=console, refresh_per_second=20) as live:
-        for _ in range(30): # 1.5 seconds of animation
+        for _ in range(30):
             offset += 0.05
             live.update(get_animated_logo(offset))
             time.sleep(0.05)
@@ -214,20 +279,30 @@ def start_interactive_shell(verbose=False):
         try: readline.read_history_file(HISTORY_PATH)
         except: pass
     
-    console.print("Type 'agents' to manage team. [bold yellow]exit[/bold yellow] to leave.\n")
+    session = load_session()
+    current_context = ""
+    if session:
+        console.print(Panel(f"Last Session: {', '.join(session['agents'])}\nStatus: [bold green]Ready to resume[/bold green]", title="[bold cyan]Session Restored[/bold cyan]", border_style="cyan"))
+        current_context = session['context']
+
+    console.print("Type 'agents' to manage team. Commands: [bold yellow]save, load, exit[/bold yellow]\n")
     while True:
         try:
             task = input("\033[1;31mNXCLI\033[0m > ").strip()
             if not task: continue
             if task.lower() == 'exit': break
             config = load_config()
+            
             if task.lower() == 'agents':
                 console.print("\n[bold white]Available Agents:[/bold white]")
                 for name in sorted(config['agents'].keys()):
                     status = "[bold green]ONLINE[/bold green]" if config['agents'][name]['enabled'] else "[bold red]OFFLINE[/bold red]"
                     console.print(f" - {name.upper():<10} {status}")
                 continue
-            orchestrate(task, verbose=verbose)
+            
+            current_context = orchestrate(task, verbose=verbose, initial_context=current_context)
+            try: readline.write_history_file(HISTORY_PATH)
+            except: pass
         except (KeyboardInterrupt, EOFError):
             console.print("\n[bold yellow]![/bold yellow] Use [bold yellow]'exit'[/bold yellow] to leave.")
             continue
