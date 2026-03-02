@@ -54,7 +54,7 @@ def print_logo():
             colored_line += f"\033[38;2;{r};{g};{b}m{char}"
         print(colored_line + "\033[0m")
     tagline = "The High-Performance Agent Orchestrator"
-    version = "v3.5 Turbo"
+    version = "v4.0 (Gemini 3.1 Pro)"
     print(f"\n\033[1;37m{tagline}\033[0m \033[1;31m{version}\033[0m\n")
 
 def ensure_config():
