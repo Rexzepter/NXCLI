@@ -7,6 +7,7 @@ import re
 import mimetypes
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.panel import Panel
 
 CONFIG_PATH = os.path.expanduser("~/.config/nxcli/nxcli_config.json")
 console = Console()
@@ -34,8 +35,8 @@ def print_logo():
         "██║ ╚████║██╔╝ ██╗╚██████╗███████╗ ██║",
         "╚═╝  ╚═══╝╚═╝  ╚═╝ ╚═════╝╚══════╝ ╚═╝"
     ]
-    start_rgb = (255, 36, 0)   # Scarlet
-    end_rgb = (255, 140, 0)   # Neon Orange
+    start_rgb = (255, 0, 0)   # Bright Red
+    end_rgb = (255, 165, 0)   # Orange
     print("") 
     for line in logo_lines:
         colored_line = ""
@@ -51,13 +52,12 @@ def print_logo():
             colored_line += f"\033[38;2;{r};{g};{b}m{char}"
         print(colored_line + "\033[0m")
     tagline = "The Multimodal Agent Orchestrator"
-    version = "v2.9 Deep Silence"
-    print(f"\n\033[1;37m{tagline}\033[0m \033[1;34m{version}\033[0m\n")
+    version = "v3.2 Advanced"
+    print(f"\n\033[1;37m{tagline}\033[0m \033[1;31m{version}\033[0m\n")
 
 def ensure_config():
     config_dir = os.path.dirname(CONFIG_PATH)
-    if not os.path.exists(config_dir):
-        os.makedirs(config_dir)
+    if not os.path.exists(config_dir): os.makedirs(config_dir)
     if not os.path.exists(CONFIG_PATH):
         default_config = {
             "agents": {
@@ -66,48 +66,35 @@ def ensure_config():
                 "opencode": {"cmd": "opencode run", "strength": "Security, privacy audits.", "capabilities": ["text", "audit"], "enabled": True}
             },
             "master": "gemini",
-            "fast_mode_threshold": 50
+            "fast_mode_threshold": 50,
+            "interactive_clarification": True
         }
-        with open(CONFIG_PATH, 'w') as f:
-            json.dump(default_config, f, indent=2)
+        with open(CONFIG_PATH, 'w') as f: json.dump(default_config, f, indent=2)
 
 def load_config():
     ensure_config()
-    with open(CONFIG_PATH, 'r') as f:
-        return json.load(f)
+    with open(CONFIG_PATH, 'r') as f: return json.load(f)
 
 def is_noise(line):
     for pattern in NOISE_PATTERNS:
-        if re.search(pattern, line.strip()):
-            return True
+        if re.search(pattern, line.strip()): return True
     return False
 
 def run_agent(agent_name, prompt, agent_info, silent=False):
     cmd = f"{agent_info['cmd']} \"{prompt.replace('\"', '\\\"')}\""
-    
-    # Use a spinner for all visible agent tasks
     status_msg = f"[bold red]NXCLI[/bold red] > [bold white]{agent_name.upper()} is working...[/bold white]"
-    
     try:
         if silent:
-            # Capture both stdout and stderr to prevent noise leak
             process = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            output = []
-            for line in process.stdout.splitlines():
-                if not is_noise(line):
-                    output.append(line)
+            output = [l for l in process.stdout.splitlines() if not is_noise(l)]
             return "\n".join(output).strip()
         else:
             with console.status(status_msg, spinner="dots"):
                 process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-                output = []
-                for line in process.stdout:
-                    if not is_noise(line):
-                        output.append(line)
+                output = [l for l in process.stdout if not is_noise(l)]
                 process.wait()
                 return "".join(output).strip() if process.returncode == 0 else None
-    except:
-        return None
+    except: return None
 
 def orchestrate(task, dry_run=False, verbose=False):
     if not task.strip(): return
@@ -119,34 +106,36 @@ def orchestrate(task, dry_run=False, verbose=False):
     is_simple = len(task.split()) < config.get('fast_mode_threshold', 50) and not any(w in task.lower() for w in multi_step_words)
 
     if is_simple and not verbose:
-        direct_task = f"{task}\n\nSTRICT: No introductory preambles. Start the answer immediately."
-        plan = [{"agent": master_agent, "task": direct_task}]
+        plan = [{"agent": master_agent, "task": f"{task}\n\nSTRICT: No introductory preambles."}]
     else:
         agent_desc = "\n".join([f"- {name}: {info['strength']}" for name, info in agents.items() if info['enabled']])
+        clarify_instruction = "If the task is critically vague, return exactly: {\"clarify\": \"Your question here\"}" if config.get('interactive_clarification', True) else ""
+        
         orchestration_prompt = f"""
         Plan this task as a JSON list: {task}
-        Agents:
-        {agent_desc}
-        
-        STRICT DIRECTIVE: For the final step, the agent MUST NOT use any introductory preambles like "I will search for...", "I will begin by...", or "Here is the result...". 
-        Jump directly into the answer or code. 
-        Response format: JSON list only.
+        Agents: {agent_desc}
+        {clarify_instruction}
+        STRICT DIRECTIVE: Final step must NOT use preambles.
+        Response format: JSON list only (or clarify object).
         """
         
         if verbose: print(f"[NXCLI] 🧠 Planning...")
         plan_raw = run_agent(master_agent, orchestration_prompt, agents[master_agent], silent=True)
         
         try:
-            if "```json" in plan_raw:
-                plan_raw = plan_raw.split("```json")[1].split("```")[0].strip()
-            elif "```" in plan_raw:
-                plan_raw = plan_raw.split("```")[1].split("```")[0].strip()
-            plan = json.loads(plan_raw)
-            # Ensure plan is a list of dicts
-            if not isinstance(plan, list) or (len(plan) > 0 and not isinstance(plan[0], dict)):
-                raise ValueError("Invalid JSON format")
-        except:
-            plan = [{"agent": master_agent, "task": task}]
+            if "```json" in plan_raw: plan_raw = plan_raw.split("```json")[1].split("```")[0].strip()
+            elif "```" in plan_raw: plan_raw = plan_raw.split("```")[1].split("```")[0].strip()
+            res = json.loads(plan_raw)
+            
+            # Handle Clarification Request
+            if isinstance(res, dict) and "clarify" in res:
+                print("\n" + "\033[1;31m" + "─" * 60 + "\033[0m")
+                console.print(Panel(res['clarify'], title="[bold red]Clarification Needed[/bold red]", border_style="red"))
+                user_answer = input("\033[1;33mYour Answer\033[0m > ").strip()
+                return orchestrate(f"{task}\n\nUser Clarification: {user_answer}", dry_run, verbose)
+            
+            plan = res if isinstance(res, list) else [{"agent": master_agent, "task": task}]
+        except: plan = [{"agent": master_agent, "task": task}]
 
     if dry_run: return
 
@@ -155,25 +144,19 @@ def orchestrate(task, dry_run=False, verbose=False):
     agents_used = []
     for step in plan:
         if not isinstance(step, dict) or 'agent' not in step: continue
-        
         agent_name = step['agent']
         agents_used.append(agent_name.upper())
         full_prompt = f"{step['task']}\n\nContext:\n{context}" if context else step['task']
-        
         output = run_agent(agent_name, full_prompt, agents[agent_name], silent=not verbose)
         if output:
             context = output
             last_output = output
-        else:
-            break
+        else: break
     
     if last_output:
         print("\n" + "\033[1;31m" + "─" * 60 + "\033[0m")
-        summary = " ➔ ".join(agents_used)
-        print(f"\033[1;31m[NXCLI]\033[0m \033[1;33mChain of Command:\033[0m {summary}\n")
-        
-        clean_lines = [l for l in last_output.splitlines() if not is_noise(l)]
-        console.print(Markdown("\n".join(clean_lines)))
+        print(f"\033[1;31m[NXCLI]\033[0m \033[1;33mChain of Command:\033[0m {" ➔ ".join(agents_used)}\n")
+        console.print(Markdown(last_output))
         print("\033[1;33m" + "─" * 60 + "\033[0m")
 
 def start_interactive_shell(verbose=False):
@@ -192,7 +175,7 @@ def start_interactive_shell(verbose=False):
             break
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="NXCLI v2.9 Deep Silence")
+    parser = argparse.ArgumentParser(description="NXCLI v3.2 Advanced")
     parser.add_argument("task", type=str, nargs='?', default=None)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("-v", "--verbose", action="store_true")
