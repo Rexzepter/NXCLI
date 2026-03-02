@@ -9,6 +9,8 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
+import time
+
 CONFIG_PATH = os.path.expanduser("~/.config/nxcli/nxcli_config.json")
 console = Console()
 
@@ -80,25 +82,37 @@ def is_noise(line):
         if re.search(pattern, line.strip()): return True
     return False
 
-def run_agent(agent_name, prompt, agent_info, status=None, silent=False):
+def run_agent(agent_name, prompt, agent_info, status_prefix=None, silent=False):
     cmd = f"{agent_info['cmd']} \"{prompt.replace('\"', '\\\"')}\""
     
     if silent:
-        # Deep Silence: Capture stdout/stderr
         try:
             process = subprocess.run(cmd, shell=True, capture_output=True, text=True)
             output = [l for l in process.stdout.splitlines() if not is_noise(l)]
             return "\n".join(output).strip()
         except: return None
 
-    # Visible Execution with Spinner
+    # NXCLI v3.6 - Live Timer Spinner
     display_name = agent_name.upper()
-    current_status = status or f"[bold cyan]NXCLI[/bold cyan] > [bold white]{display_name} is working...[/bold white]"
+    label = status_prefix or f"[bold red]NXCLI[/bold red] > [bold white]{display_name}"
     
-    with console.status(current_status, spinner="dots"):
+    start_time = time.time()
+    with console.status(f"{label} [bold white]is working... (0.0s)[/bold white]", spinner="dots") as status:
         try:
             process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-            output = [l for l in process.stdout if not is_noise(l)]
+            output = []
+            
+            # Use a while loop to update the timer while waiting for output
+            while True:
+                line = process.stdout.readline()
+                elapsed = time.time() - start_time
+                status.update(f"{label} [bold white]is working... ({elapsed:.1f}s)[/bold white]")
+                
+                if not line and process.poll() is not None:
+                    break
+                if line and not is_noise(line):
+                    output.append(line)
+            
             process.wait()
             return "".join(output).strip() if process.returncode == 0 else None
         except: return None
@@ -172,9 +186,9 @@ def orchestrate(task, dry_run=False, verbose=False):
         
         # Determine specific status message for this step
         mode_label = "[bold yellow]TURBO[/bold yellow]" if len(plan) == 1 else "[bold cyan]ORCH[/bold cyan]"
-        step_status = f"[bold red]NXCLI[/bold red] > {mode_label} [bold white]{agent_name.upper()} is executing...[/bold white]"
+        step_prefix = f"[bold red]NXCLI[/bold red] > {mode_label} [bold white]{agent_name.upper()}"
         
-        output = run_agent(agent_name, full_prompt, agents[agent_name], status=step_status, silent=False)
+        output = run_agent(agent_name, full_prompt, agents[agent_name], status_prefix=step_prefix, silent=False)
         if output:
             context = output
             last_output = output
