@@ -52,7 +52,7 @@ def print_logo():
             colored_line += f"\033[38;2;{r};{g};{b}m{char}"
         print(colored_line + "\033[0m")
     tagline = "The Multimodal Agent Orchestrator"
-    version = "v3.2 Advanced"
+    version = "v3.3 Mode Aware"
     print(f"\n\033[1;37m{tagline}\033[0m \033[1;31m{version}\033[0m\n")
 
 def ensure_config():
@@ -61,13 +61,13 @@ def ensure_config():
     if not os.path.exists(CONFIG_PATH):
         default_config = {
             "agents": {
-                "gemini": {"cmd": "gemini -y -p", "strength": "Planning, search, orchestration.", "capabilities": ["text", "vision", "search"], "enabled": True},
-                "qwen": {"cmd": "qwen -y -p", "strength": "Fast code, refactoring.", "capabilities": ["text", "code"], "enabled": True},
-                "opencode": {"cmd": "opencode run", "strength": "Security, privacy audits.", "capabilities": ["text", "audit"], "enabled": True}
+                "gemini": {"cmd": "gemini -y -p", "strength": "Planning, search, orchestration.", "capabilities": ["text", "vision", "search"], "enabled": true},
+                "qwen": {"cmd": "qwen -y -p", "strength": "Fast code, refactoring.", "capabilities": ["text", "code"], "enabled": true},
+                "opencode": {"cmd": "opencode run", "strength": "Security, privacy audits.", "capabilities": ["text", "audit"], "enabled": true}
             },
             "master": "gemini",
             "fast_mode_threshold": 50,
-            "interactive_clarification": True
+            "interactive_clarification": true
         }
         with open(CONFIG_PATH, 'w') as f: json.dump(default_config, f, indent=2)
 
@@ -80,21 +80,28 @@ def is_noise(line):
         if re.search(pattern, line.strip()): return True
     return False
 
-def run_agent(agent_name, prompt, agent_info, silent=False):
+def run_agent(agent_name, prompt, agent_info, status=None, silent=False):
     cmd = f"{agent_info['cmd']} \"{prompt.replace('\"', '\\\"')}\""
-    status_msg = f"[bold red]NXCLI[/bold red] > [bold white]{agent_name.upper()} is working...[/bold white]"
-    try:
-        if silent:
+    
+    if silent:
+        # Deep Silence: Capture stdout/stderr
+        try:
             process = subprocess.run(cmd, shell=True, capture_output=True, text=True)
             output = [l for l in process.stdout.splitlines() if not is_noise(l)]
             return "\n".join(output).strip()
-        else:
-            with console.status(status_msg, spinner="dots"):
-                process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-                output = [l for l in process.stdout if not is_noise(l)]
-                process.wait()
-                return "".join(output).strip() if process.returncode == 0 else None
-    except: return None
+        except: return None
+
+    # Visible Execution with Spinner
+    display_name = agent_name.upper()
+    current_status = status or f"[bold cyan]NXCLI[/bold cyan] > [bold white]{display_name} is working...[/bold white]"
+    
+    with console.status(current_status, spinner="dots"):
+        try:
+            process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            output = [l for l in process.stdout if not is_noise(l)]
+            process.wait()
+            return "".join(output).strip() if process.returncode == 0 else None
+        except: return None
 
 def orchestrate(task, dry_run=False, verbose=False):
     if not task.strip(): return
@@ -102,43 +109,47 @@ def orchestrate(task, dry_run=False, verbose=False):
     agents = config['agents']
     master_agent = config['master']
 
-    multi_step_words = ['then', 'and', 'after', 'next', 'then ask', 'follow up']
-    is_simple = len(task.split()) < config.get('fast_mode_threshold', 50) and not any(w in task.lower() for w in multi_step_words)
+    # NXCLI v3.3 - Start with Path Identification
+    with console.status("[bold red]NXCLI[/bold red] > [bold white]Identifying path...[/bold white]", spinner="dots") as status:
+        multi_step_words = ['then', 'and', 'after', 'next', 'then ask', 'follow up']
+        is_simple = len(task.split()) < config.get('fast_mode_threshold', 50) and not any(w in task.lower() for w in multi_step_words)
 
-    if is_simple and not verbose:
-        plan = [{"agent": master_agent, "task": f"{task}\n\nSTRICT: No introductory preambles."}]
-    else:
-        agent_desc = "\n".join([f"- {name}: {info['strength']}" for name, info in agents.items() if info['enabled']])
-        clarify_instruction = "If the task is critically vague, return exactly: {\"clarify\": \"Your question here\"}" if config.get('interactive_clarification', True) else ""
-        
-        orchestration_prompt = f"""
-        Plan this task as a JSON list: {task}
-        Agents: {agent_desc}
-        {clarify_instruction}
-        STRICT DIRECTIVE: Final step must NOT use preambles.
-        Response format: JSON list only (or clarify object).
-        """
-        
-        if verbose: print(f"[NXCLI] 🧠 Planning...")
-        plan_raw = run_agent(master_agent, orchestration_prompt, agents[master_agent], silent=True)
-        
-        try:
-            if "```json" in plan_raw: plan_raw = plan_raw.split("```json")[1].split("```")[0].strip()
-            elif "```" in plan_raw: plan_raw = plan_raw.split("```")[1].split("```")[0].strip()
-            res = json.loads(plan_raw)
+        if is_simple and not verbose:
+            status.update("[bold red]NXCLI[/bold red] > [bold yellow]TURBO MODE[/bold yellow] [bold white]activated...[/bold white]")
+            plan = [{"agent": master_agent, "task": f"{task}\n\nSTRICT: No introductory preambles."}]
+        else:
+            status.update("[bold red]NXCLI[/bold red] > [bold cyan]ORCHESTRATION MODE[/bold cyan] [bold white]planning...[/bold white]")
+            agent_desc = "\n".join([f"- {name}: {info['strength']}" for name, info in agents.items() if info['enabled']])
+            clarify_instruction = "If the task is critically vague, return exactly: {\"clarify\": \"Your question here\"}" if config.get('interactive_clarification', True) else ""
             
-            # Handle Clarification Request
-            if isinstance(res, dict) and "clarify" in res:
-                print("\n" + "\033[1;31m" + "─" * 60 + "\033[0m")
-                console.print(Panel(res['clarify'], title="[bold red]Clarification Needed[/bold red]", border_style="red"))
-                user_answer = input("\033[1;33mYour Answer\033[0m > ").strip()
-                return orchestrate(f"{task}\n\nUser Clarification: {user_answer}", dry_run, verbose)
+            orchestration_prompt = f"""
+            Plan this task as a JSON list: {task}
+            Agents: {agent_desc}
+            {clarify_instruction}
+            Response format: JSON list only (or clarify object).
+            """
             
-            plan = res if isinstance(res, list) else [{"agent": master_agent, "task": task}]
-        except: plan = [{"agent": master_agent, "task": task}]
+            # Internal call for the plan
+            plan_raw = run_agent(master_agent, orchestration_prompt, agents[master_agent], silent=True)
+            
+            try:
+                if "```json" in plan_raw: plan_raw = plan_raw.split("```json")[1].split("```")[0].strip()
+                elif "```" in plan_raw: plan_raw = plan_raw.split("```")[1].split("```")[0].strip()
+                res = json.loads(plan_raw)
+                
+                if isinstance(res, dict) and "clarify" in res:
+                    status.stop() # Pause spinner for user input
+                    print("\n" + "\033[1;31m" + "─" * 60 + "\033[0m")
+                    console.print(Panel(res['clarify'], title="[bold red]Clarification Needed[/bold red]", border_style="red"))
+                    user_answer = input("\033[1;33mYour Answer\033[0m > ").strip()
+                    return orchestrate(f"{task}\n\nUser Clarification: {user_answer}", dry_run, verbose)
+                
+                plan = res if isinstance(res, list) else [{"agent": master_agent, "task": task}]
+            except: plan = [{"agent": master_agent, "task": task}]
 
     if dry_run: return
 
+    # Execution phase with active status
     context = ""
     last_output = ""
     agents_used = []
@@ -147,7 +158,12 @@ def orchestrate(task, dry_run=False, verbose=False):
         agent_name = step['agent']
         agents_used.append(agent_name.upper())
         full_prompt = f"{step['task']}\n\nContext:\n{context}" if context else step['task']
-        output = run_agent(agent_name, full_prompt, agents[agent_name], silent=not verbose)
+        
+        # Determine specific status message for this step
+        mode_label = "[bold yellow]TURBO[/bold yellow]" if len(plan) == 1 else "[bold cyan]ORCH[/bold cyan]"
+        step_status = f"[bold red]NXCLI[/bold red] > {mode_label} [bold white]{agent_name.upper()} is executing...[/bold white]"
+        
+        output = run_agent(agent_name, full_prompt, agents[agent_name], status=step_status, silent=False)
         if output:
             context = output
             last_output = output
@@ -175,7 +191,7 @@ def start_interactive_shell(verbose=False):
             break
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="NXCLI v3.2 Advanced")
+    parser = argparse.ArgumentParser(description="NXCLI v3.3 Mode Aware")
     parser.add_argument("task", type=str, nargs='?', default=None)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("-v", "--verbose", action="store_true")
