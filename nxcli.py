@@ -103,6 +103,17 @@ def run_agent(agent_name, prompt, agent_info, status=None, silent=False):
             return "".join(output).strip() if process.returncode == 0 else None
         except: return None
 
+def clean_output_text(text):
+    """Deep cleans the final output text from any persistent system leaks."""
+    lines = text.splitlines()
+    cleaned = []
+    for line in lines:
+        if is_noise(line): continue
+        # Specific brute-force check for the .Trash leak
+        if ".Trash" in line and "path:" in line: continue
+        cleaned.append(line)
+    return "\n".join(cleaned).strip()
+
 def orchestrate(task, dry_run=False, verbose=False):
     if not task.strip(): return
     config = load_config()
@@ -172,7 +183,10 @@ def orchestrate(task, dry_run=False, verbose=False):
     if last_output:
         print("\n" + "\033[1;31m" + "─" * 60 + "\033[0m")
         print(f"\033[1;31m[NXCLI]\033[0m \033[1;33mChain of Command:\033[0m {" ➔ ".join(agents_used)}\n")
-        console.print(Markdown(last_output))
+        
+        # NXCLI v3.4 - Apply Deep Clean
+        cleaned_markdown = clean_output_text(last_output)
+        console.print(Markdown(cleaned_markdown))
         print("\033[1;33m" + "─" * 60 + "\033[0m")
 
 def start_interactive_shell(verbose=False):
