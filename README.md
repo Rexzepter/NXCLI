@@ -23,11 +23,12 @@ By skipping the planning phase for simple queries, Turbo Mode eliminates over **
 
 ## 🏗️ How it Works
 NXCLI uses a **Planning-Execution-Piping** loop to solve complex tasks:
-1.  **Analyze:** The Master Brain (Gemini Stable) decomposes your natural language request into a sequence of specialized steps.
+1.  **Analyze:** The Master Brain (Gemini 3.1 Pro) decomposes your natural language request into a sequence of specialized steps.
 2.  **Assign:** Each step is assigned to the best agent for the job (e.g., Qwen for fast code, OpenCode for security, Gemini for research).
 3.  **Pipe:** Output from one agent is automatically fed as context to the next, creating a "mesh" of intelligence.
 
 ## ✨ Features
+-   **v4.0 Intelligence:** Powered by Gemini 3.1 Pro with a **1-million-token** context window for massive multi-agent workflows.
 -   **Turbo Mode:** Bypasses planning for simple queries to provide near-instant responses.
 -   **Contextual Piping:** Automatically pipes output from one agent into the next, maintaining deep context across complex workflows.
 -   **Rich UI:** High-contrast TrueColor gradients and full Markdown rendering using the `rich` engine.

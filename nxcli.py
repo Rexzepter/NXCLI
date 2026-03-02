@@ -63,7 +63,7 @@ def ensure_config():
     if not os.path.exists(CONFIG_PATH):
         default_config = {
             "agents": {
-                "gemini": {"cmd": "gemini -y -p", "strength": "Planning, search, orchestration.", "capabilities": ["text", "vision", "search"], "enabled": true},
+                "gemini": {"cmd": "gemini -m gemini-3.1-pro-preview -y -p", "strength": "High-reasoning planning, research, and long-context orchestration.", "capabilities": ["text", "vision", "search"], "enabled": true},
                 "qwen": {"cmd": "qwen -y -p", "strength": "Fast code, refactoring.", "capabilities": ["text", "code"], "enabled": true},
                 "opencode": {"cmd": "opencode run", "strength": "Security, privacy audits.", "capabilities": ["text", "audit"], "enabled": true}
             },
