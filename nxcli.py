@@ -199,7 +199,7 @@ def start_interactive_shell(verbose=False):
                 print("\n[NXCLI] Come back soon 👋")
                 break
             if task: orchestrate(task, verbose=verbose)
-            print("\n" + "-"*20 + "\n")
+            # Removed redundant separator
         except (KeyboardInterrupt, EOFError):
             print("\n[NXCLI] Come back soon 👋")
             break
