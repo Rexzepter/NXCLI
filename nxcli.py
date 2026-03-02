@@ -65,7 +65,7 @@ def get_animated_logo(offset):
             colored_line += f"\033[38;2;{r};{g};{b}m{char}"
         full_logo += colored_line + "\033[0m\n"
     tagline = "The High-Performance Agent Orchestrator"
-    version = "v5.6.2"
+    version = "v5.6.3"
     full_logo += f"\n\033[1;37m{tagline}\033[0m \033[1;31m{version}\033[0m\n"
     return Text.from_ansi(full_logo)
 
@@ -171,14 +171,14 @@ def orchestrate(task, dry_run=False, verbose=False, initial_context=""):
         output = last_output
 
     if output and output != "CANCELLED":
-        print("\n" + "\033[1;31m" + "─" * 60 + "\033[0m")
-        print(f"\033[1;31m[NXCLI]\033[0m \033[1;33mChain:\033[0m {" ➔ ".join(breadcrumb)}\n")
+        console.print("\n" + "\033[1;31m" + "─" * 60 + "\033[0m")
+        console.print(f"\033[1;31m[NXCLI]\033[0m \033[1;33mChain:\033[0m {" ➔ ".join(breadcrumb)}\n")
         final_text = clean_output_text(output)
         try:
             console.print(Markdown(final_text))
         except:
             console.print(final_text)
-        print("\033[1;33m" + "─" * 60 + "\033[0m")
+        console.print("\033[1;33m" + "─" * 60 + "\033[0m")
     return output
 
 def start_interactive_shell(verbose=False):
@@ -191,15 +191,25 @@ def start_interactive_shell(verbose=False):
     if os.path.exists(HISTORY_PATH):
         try: readline.read_history_file(HISTORY_PATH)
         except: pass
-    print("Commands: [bold yellow]exit[/bold yellow]\n")
+    console.print("Commands: [bold yellow]exit[/bold yellow]\n")
     while True:
         try:
             task = input("\033[1;31mNXCLI\033[0m > ").strip()
             if not task: continue
             if task.lower() == 'exit': break
+            
+            # v5.6.3 - Restore Agents command if missing
+            if task.lower() == 'agents':
+                config = load_config()
+                console.print("\n[bold white]Available Agents:[/bold white]")
+                for name in sorted(config['agents'].keys()):
+                    status = "[bold green]ONLINE[/bold green]" if config['agents'][name].get('enabled', False) else "[bold red]OFFLINE[/bold red]"
+                    console.print(f" - {name.upper():<10} {status}")
+                continue
+
             orchestrate(task, verbose=verbose)
         except (KeyboardInterrupt, EOFError):
-            print("\n[NXCLI] Come back soon 👋")
+            console.print("\n[NXCLI] Come back soon 👋")
             break
 
 if __name__ == "__main__":
