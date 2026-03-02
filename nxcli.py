@@ -12,6 +12,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.live import Live
+from rich.text import Text
 
 CONFIG_PATH = os.path.expanduser("~/.config/nxcli/nxcli_config.json")
 HISTORY_PATH = os.path.expanduser("~/.nxcli_history")
@@ -33,34 +34,36 @@ NOISE_PATTERNS = [
     r"Retrying after.*"
 ]
 
-def print_logo():
-    logo_lines = [
-        "███╗   ██╗██╗  ██╗ ██████╗██╗      ██╗",
-        "████╗  ██║╚██╗██╔╝██╔════╝██║      ██║",
-        "██╔██╗ ██║ ╚███╔╝ ██║     ██║      ██║",
-        "██║╚██╗██║ ██╔██╗ ██║     ██║      ██║",
-        "██║ ╚████║██╔╝ ██╗╚██████╗███████╗ ██║",
-        "╚═╝  ╚═══╝╚═╝  ╚═╝ ╚═════╝╚══════╝ ╚═╝"
-    ]
+LOGO_LINES = [
+    "███╗   ██╗██╗  ██╗ ██████╗██╗      ██╗",
+    "████╗  ██║╚██╗██╔╝██╔════╝██║      ██║",
+    "██╔██╗ ██║ ╚███╔╝ ██║     ██║      ██║",
+    "██║╚██╗██║ ██╔██╗ ██║     ██║      ██║",
+    "██║ ╚████║██╔╝ ██╗╚██████╗███████╗ ██║",
+    "╚═╝  ╚═══╝╚═╝  ╚═╝ ╚═════╝╚══════╝ ╚═╝"
+]
+
+def get_animated_logo(offset):
     start_rgb = (255, 0, 0)
     end_rgb = (255, 165, 0)
-    print("") 
-    for line in logo_lines:
+    full_logo = ""
+    for line in LOGO_LINES:
         colored_line = ""
         length = len(line)
         for i, char in enumerate(line):
             if char == ' ':
                 colored_line += char
                 continue
-            ratio = i / max(1, length - 1)
+            ratio = ((i / max(1, length - 1)) + offset) % 1.0
             r = int(start_rgb[0] + (end_rgb[0] - start_rgb[0]) * ratio)
             g = int(start_rgb[1] + (end_rgb[1] - start_rgb[1]) * ratio)
             b = int(start_rgb[2] + (end_rgb[2] - start_rgb[2]) * ratio)
             colored_line += f"\033[38;2;{r};{g};{b}m{char}"
-        print(colored_line + "\033[0m")
+        full_logo += colored_line + "\033[0m\n"
     tagline = "The High-Performance Agent Orchestrator"
-    version = "v4.8"
-    print(f"\n\033[1;37m{tagline}\033[0m \033[1;31m{version}\033[0m\n")
+    version = "v5.0"
+    full_logo += f"\n\033[1;37m{tagline}\033[0m \033[1;31m{version}\033[0m\n"
+    return Text.from_ansi(full_logo)
 
 def ensure_config():
     if not os.path.exists(SESSION_DIR): os.makedirs(SESSION_DIR)
@@ -72,8 +75,7 @@ def ensure_config():
                 "gemini": {"cmd": "gemini -m gemini-3.1-pro-preview -y -p", "strength": "Planning, research, and long-context orchestration.", "capabilities": ["text", "vision", "search"], "enabled": True},
                 "qwen": {"cmd": "qwen -y -p", "strength": "Fast code generation, refactoring, and algorithms.", "capabilities": ["text", "code"], "enabled": True},
                 "opencode": {"cmd": "opencode run", "strength": "Security, privacy audits, and local models.", "capabilities": ["text", "audit"], "enabled": True},
-                "claude": {"cmd": "claude -p", "strength": "Complex reasoning, multi-file refactors, and advanced coding.", "capabilities": ["text", "code"], "enabled": False},
-                "aider": {"cmd": "aider --message", "strength": "Autonomous code editing and pair programming.", "capabilities": ["code"], "enabled": False}
+                "claude": {"cmd": "claude -p", "strength": "Complex reasoning, multi-file refactors, and advanced coding.", "capabilities": ["text", "code"], "enabled": False}
             },
             "master": "gemini",
             "fast_mode_threshold": 50,
@@ -118,7 +120,6 @@ def get_workspace_pulse():
 def run_agent(agent_name, prompt, agent_info, status_prefix=None, silent=False):
     base_cmd = agent_info.get('cmd', 'sh -c')
     cmd = f"{base_cmd} \"{prompt.replace('\"', '\\\"')}\""
-    
     if silent:
         try:
             process = subprocess.run(cmd, shell=True, capture_output=True, text=True)
@@ -128,7 +129,6 @@ def run_agent(agent_name, prompt, agent_info, status_prefix=None, silent=False):
     display_name = agent_name.upper()
     label = status_prefix or f"[bold red]NXCLI[/bold red] > [bold white]{display_name}"
     start_time = time.time()
-    
     with console.status(f"{label} [bold white]starting...[/bold white]", spinner="dots") as status:
         process = None
         try:
@@ -137,8 +137,6 @@ def run_agent(agent_name, prompt, agent_info, status_prefix=None, silent=False):
             while process.poll() is None:
                 elapsed = time.time() - start_time
                 status.update(f"{label} [bold white]is working... ({elapsed:.1f}s) [dim]Ctrl+C to Cancel[/dim][/bold white]")
-                
-                # Non-blocking read
                 import fcntl
                 fd = process.stdout.fileno()
                 fl = fcntl.fcntl(fd, fcntl.F_GETFL)
@@ -148,19 +146,16 @@ def run_agent(agent_name, prompt, agent_info, status_prefix=None, silent=False):
                     if line and not is_noise(line): output.append(line)
                 except: pass
                 time.sleep(0.1)
-            
             final_stdout, _ = process.communicate()
             if final_stdout:
                 for line in final_stdout.splitlines():
                     if not is_noise(line): output.append(line + "\n")
             return "".join(output).strip() if process.returncode == 0 else None
-            
         except KeyboardInterrupt:
-            if process:
-                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+            if process: os.killpg(os.getpgid(process.pid), signal.SIGTERM)
             console.print("\n[bold yellow]⚠ Task Cancelled by user.[/bold yellow]")
             return "CANCELLED"
-        except Exception: return None
+        except: return None
 
 def orchestrate(task, dry_run=False, verbose=False, initial_context=""):
     if not task.strip(): return initial_context
@@ -191,9 +186,7 @@ def orchestrate(task, dry_run=False, verbose=False, initial_context=""):
         agent_info = config['agents'].get(agent_name, {"cmd": "sh -c", "strength": "Local Shell"})
         chain_display.append(f"{agent_name.upper()}")
         mode_label = "[bold yellow]TURBO[/bold yellow]" if len(plan) == 1 else f"[bold cyan]STEP {i+1}/{len(plan)}[/bold cyan]"
-        
         output = run_agent(agent_name, f"{step['task']}\n\nContext:\n{context}", agent_info, status_prefix=f"[bold red]NXCLI[/bold red] > {mode_label} [bold white]{agent_name.upper()}", silent=False)
-        
         if output == "CANCELLED": break
         if output:
             context = output
@@ -209,31 +202,38 @@ def orchestrate(task, dry_run=False, verbose=False, initial_context=""):
     return context
 
 def start_interactive_shell(verbose=False):
-    print_logo()
+    # Live Animated Intro
+    offset = 0
+    with Live(get_animated_logo(offset), console=console, refresh_per_second=20) as live:
+        for _ in range(30): # 1.5 seconds of animation
+            offset += 0.05
+            live.update(get_animated_logo(offset))
+            time.sleep(0.05)
+    
+    if os.path.exists(HISTORY_PATH):
+        try: readline.read_history_file(HISTORY_PATH)
+        except: pass
+    
     console.print("Type 'agents' to manage team. [bold yellow]exit[/bold yellow] to leave.\n")
     while True:
         try:
             task = input("\033[1;31mNXCLI\033[0m > ").strip()
             if not task: continue
             if task.lower() == 'exit': break
-            
             config = load_config()
             if task.lower() == 'agents':
                 console.print("\n[bold white]Available Agents:[/bold white]")
                 for name in sorted(config['agents'].keys()):
-                    info = config['agents'][name]
-                    status = "[bold green]ONLINE[/bold green]" if info.get('enabled', False) else "[bold red]OFFLINE[/bold red]"
+                    status = "[bold green]ONLINE[/bold green]" if config['agents'][name]['enabled'] else "[bold red]OFFLINE[/bold red]"
                     console.print(f" - {name.upper():<10} {status}")
                 continue
-
-            
             orchestrate(task, verbose=verbose)
         except (KeyboardInterrupt, EOFError):
             console.print("\n[bold yellow]![/bold yellow] Use [bold yellow]'exit'[/bold yellow] to leave.")
             continue
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="NXCLI v4.7 E-Stop")
+    parser = argparse.ArgumentParser(description="NXCLI v5.0")
     parser.add_argument("task", type=str, nargs='?', default=None)
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()

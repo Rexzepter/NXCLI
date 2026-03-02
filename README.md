@@ -30,7 +30,7 @@ NXCLI uses a **Planning-Execution-Piping** loop to solve complex tasks:
 ## ✨ Features
 
 ### 🧠 Core Intelligence
--   **v4.4 Sentinel Intelligence:** Powered by Gemini 3.1 Pro with a **1-million-token** context window for massive multi-agent workflows.
+-   **v5.0 Intelligence:** Powered by Gemini 3.1 Pro with a **1-million-token** context window for massive multi-agent workflows.
 -   **Workspace Pulse:** Automatically scans your project context (Git status, file structure, language detection) to provide agents with "eyes" on your workspace.
 -   **Recursive Sub-Planning:** Fractally decompose complex engineering tasks into nested mini-orchestrations for higher reliability.
 -   **Reflect & Repair:** Autonomous self-correction loops. If an agent fails or outputs an error, the Master Brain automatically generates a surgical fix.
